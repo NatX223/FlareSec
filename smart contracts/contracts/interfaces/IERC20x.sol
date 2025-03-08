@@ -6,7 +6,7 @@ pragma solidity ^0.8.28;
 
 interface IERC20x {
     enum Status { Pending, Approved, Denied }
-    enum RequestType { Approval, Transfer, TransferFrom }
+    enum RequestType { Approval, Transfer }
 
     struct Request {
         address owner;

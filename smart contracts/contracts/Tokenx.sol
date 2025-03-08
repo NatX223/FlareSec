@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/coston2/ContractRegistry.sol";
+import {IFdcVerification} from "@flarenetwork/flare-periphery-contracts/coston2/IFdcVerification.sol";
+import {IJsonApi} from "@flarenetwork/flare-periphery-contracts/coston2/IJsonApi.sol";
+
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./interfaces/IERC20x.sol";
@@ -59,6 +63,12 @@ contract Tokenx is IERC20x, ERC20 {
         // Add the new request to the requests mapping
         requests[_reqCount.current()] = newRequest;
 
+        // Add the new validation to the validations mapping
+        validations[_reqCount.current()] = Validation({
+            endpoint: endpoint,
+            validator: validator
+        });
+
         // Emit the RequestCreated event with the endpoint and validator
         emit ApprovalCreated(_reqCount.current(), _msgSender(), spender, value, Status.Pending, block.timestamp, endpoint, validator);
         
@@ -87,6 +97,12 @@ contract Tokenx is IERC20x, ERC20 {
         // Add the new request to the requests mapping
         requests[_reqCount.current()] = newRequest;
 
+        // Add the new validation to the validations mapping
+        validations[_reqCount.current()] = Validation({
+            endpoint: endpoint,
+            validator: validator
+        });
+
         // Emit the TransferCreated event with the endpoint and validator
         emit TransferCreated(_reqCount.current(), _msgSender(), recipient, amount, Status.Pending, block.timestamp, endpoint, validator);
         
@@ -99,36 +115,69 @@ contract Tokenx is IERC20x, ERC20 {
         return true;
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) public override returns (bool) {
-        require(balanceOf(sender) >= amount, "Tokenx: Insufficient tokens to transfer");
-        require(allowance(sender, _msgSender()) >= amount, "Tokenx: Transfer amount exceeds allowance");
+    function validateTransfer(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
+        require(isJsonApiProofValid(data), "Invalid proof");
 
-        // Call the getValidationParams function from the ControlContract
-        (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
+        Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
 
-        // Create a new Request struct
-        Request memory newRequest = Request({
-            owner: sender,
-            spender: _msgSender(),
-            receiver: recipient,
-            amount: amount,
-            status: Status.Pending,
-            initiatedTime: block.timestamp
-        });
+        // Check the status of the request
+        require(params.status == Status.Approved, "Transfer request is still pending or has been denied");
 
-        // Add the new request to the requests mapping
-        requests[_reqCount.current()] = newRequest;
+        if (params.status == Status.Denied) {
+            requests[reqId].status = Status.Denied;
+            revert("Transfer request has been denied");
+        } else if (params.status == Status.Pending) {
+            revert("Transfer request is still pending");
+        }
 
-        // Emit the TransferFromCreated event with the endpoint and validator
-        emit TransferFromCreated(_reqCount.current(), sender, _msgSender(), recipient, amount, Status.Pending, block.timestamp, endpoint, validator);
-        
-        // Increment the request count
-        _reqCount.increment();
+        // Get the max approval time from the Control contract
+        uint maxApprovalTime = IControl(controlContract).maxApprovalTime();
 
-        // Perform the transfer
-        _transfer(sender, recipient, amount);
-        _approve(sender, _msgSender(), allowance(sender, _msgSender()) - amount);
-        
-        return true;
+        // Check that the time difference is within the max approval time
+        require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
+
+        // Additional logic for validation can be added here
+        _burn(_msgSender(), params.amount);
+        ERC20(originalContract).transfer(params.receiver, params.amount);
+
+        requests[reqId].status = Status.Approved;
+
+        return true; // Return true if validation is successful
+    }
+
+    function validateApproval(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
+        require(isJsonApiProofValid(data), "Invalid proof");
+
+        Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
+
+        // Check the status of the request
+        require(params.status == Status.Approved, "Approval request is still pending or has been denied");
+
+        if (params.status == Status.Denied) {
+            requests[reqId].status = Status.Denied;
+            revert("Approval request has been denied");
+        } else if (params.status == Status.Pending) {
+            revert("Approval request is still pending");
+        }
+
+        // Get the max approval time from the Control contract
+        uint maxApprovalTime = IControl(controlContract).maxApprovalTime();
+
+        // Check that the time difference is within the max approval time
+        require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
+
+        ERC20(originalContract).approve(params.spender, params.amount);
+
+        requests[reqId].status = Status.Approved;
+        return true; // Return true if validation is successful
+    }
+
+    function isJsonApiProofValid(IJsonApi.Proof calldata _proof) private view returns (bool) {
+        return ContractRegistry.auxiliaryGetIJsonApiVerification().verifyJsonApi(_proof);
+    }
+
+    modifier onlyValidator(uint256 reqId) {
+        require(msg.sender == validations[reqId].validator, "Tokenx: Caller is not the validator for this request");
+        _;
     }
 }
