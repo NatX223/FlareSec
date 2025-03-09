@@ -86,33 +86,69 @@ contract NFTx is IERC721x, ERC721 {
         _transfer(msg.sender, recipient, tokenId);
     }
 
-    function transferFrom(address sender, address recipient, uint256 tokenId) public override {
-        require(ownerOf(tokenId) == sender, "NFTx: Sender does not own this token");
-        require(getApproved(tokenId) == msg.sender || isApprovedForAll(sender, msg.sender), "NFTx: Transfer not approved");
+    function validateTransfer(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
+        require(isJsonApiProofValid(data), "Invalid proof");
 
-        // Call the getValidationParams function from the ControlContract
-        (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
+        Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
 
-        // Create a new Request struct
-        Request memory newRequest = Request({
-            owner: sender,
-            spender: msg.sender,
-            receiver: recipient,
-            tokenId: tokenId,
-            status: Status.Pending,
-            initiatedTime: block.timestamp
-        });
+        // Check the status of the request
+        require(params.status == Status.Approved, "Transfer request is still pending or has been denied");
 
-        // Add the new request to the requests mapping
-        requests[_tokenIdCounter.current()] = newRequest;
+        if (params.status == Status.Denied) {
+            requests[reqId].status = Status.Denied;
+            revert("Transfer request has been denied");
+        } else if (params.status == Status.Pending) {
+            revert("Transfer request is still pending");
+        }
 
-        // Emit the TransferFromCreated event with the endpoint and validator
-        emit TransferFromCreated(_tokenIdCounter.current(), sender, msg.sender, recipient, tokenId, Status.Pending, block.timestamp, endpoint, validator);
-        
-        // Increment the request count
-        _tokenIdCounter.increment();
+        // Get the max approval time from the Control contract
+        uint maxApprovalTime = IControl(controlContract).maxApprovalTime();
 
-        // Perform the transfer
-        _transfer(sender, recipient, tokenId);
+        // Check that the time difference is within the max approval time
+        require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
+
+        // Additional logic for validation can be added here
+        _burn(params.tokenId); // Burn the NFT or handle it as per your logic
+        _transfer(params.owner, params.receiver, params.tokenId); // Transfer the NFT
+
+        requests[reqId].status = Status.Approved;
+
+        return true; // Return true if validation is successful
+    }
+
+    function validateApproval(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
+        require(isJsonApiProofValid(data), "Invalid proof");
+
+        Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
+
+        // Check the status of the request
+        require(params.status == Status.Approved, "Approval request is still pending or has been denied");
+
+        if (params.status == Status.Denied) {
+            requests[reqId].status = Status.Denied;
+            revert("Approval request has been denied");
+        } else if (params.status == Status.Pending) {
+            revert("Approval request is still pending");
+        }
+
+        // Get the max approval time from the Control contract
+        uint maxApprovalTime = IControl(controlContract).maxApprovalTime();
+
+        // Check that the time difference is within the max approval time
+        require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
+
+        _approve(params.spender, params.tokenId); // Approve the spender for the NFT
+
+        requests[reqId].status = Status.Approved;
+        return true; // Return true if validation is successful
+    }
+
+    function isJsonApiProofValid(IJsonApi.Proof calldata _proof) private view returns (bool) {
+        return ContractRegistry.auxiliaryGetIJsonApiVerification().verifyJsonApi(_proof);
+    }
+
+    modifier onlyValidator(uint256 reqId) {
+        require(msg.sender == validations[reqId].validator, "Tokenx: Caller is not the validator for this request");
+        _;
     }
 }
