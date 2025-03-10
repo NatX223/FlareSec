@@ -15,7 +15,6 @@ contract NFTx is IERC721x, ERC721 {
     Counters.Counter public _reqCount;
 
     // State variable
-    address public originalContract;
     address public controlContract;
 
     mapping(uint256 => Request) public requests;
@@ -23,25 +22,7 @@ contract NFTx is IERC721x, ERC721 {
 
     // Constructor
     constructor(string memory name, string memory symbol, address _originalContract, address _controlContract) ERC721(name, symbol) {
-        originalContract = _originalContract;
         controlContract = _controlContract;
-    }
-
-    function upgrade(uint256 tokenId) public {
-        require(ownerOf(tokenId) == _msgSender(), "NFTx: You do not own this token");
-
-        // Transfer the NFT to this contract
-        ERC721(originalContract).transferFrom(_msgSender(), address(this), tokenId);
-        
-        // Mint a new NFT (or handle the logic for upgrading)
-        _mint(_msgSender(), tokenId);
-    }
-
-    function downgrade(uint256 tokenId) public {
-        require(ownerOf(tokenId) == _msgSender(), "NFTx: You do not own this token");
-
-        _burn(tokenId);
-        ERC721(originalContract).transferFrom(address(this), _msgSender(), tokenId);
     }
 
     function approve(address spender, uint256 tokenId) public override {
@@ -120,8 +101,7 @@ contract NFTx is IERC721x, ERC721 {
         require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
 
         // Additional logic for validation can be added here
-        _burn(params.tokenId); // Burn the NFT or handle it as per your logic
-        ERC721(originalContract).transferFrom(address(this), params.receiver, params.tokenId);
+        _transfer(params.owner, params.receiver, params.tokenId);
 
         requests[reqId].status = Status.Approved;
 
@@ -149,7 +129,7 @@ contract NFTx is IERC721x, ERC721 {
         // Check that the time difference is within the max approval time
         require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
 
-        ERC721(originalContract).approve(params.spender, params.tokenId); // Approve the spender for the NFT
+        _approve(params.spender, params.tokenId, params.owner);
 
         requests[reqId].status = Status.Approved;
         return true; // Return true if validation is successful

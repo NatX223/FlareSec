@@ -5,57 +5,41 @@ import {ContractRegistry} from "@flarenetwork/flare-periphery-contracts/coston2/
 import {IFdcVerification} from "@flarenetwork/flare-periphery-contracts/coston2/IFdcVerification.sol";
 import {IJsonApi} from "@flarenetwork/flare-periphery-contracts/coston2/IJsonApi.sol";
 
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "./interfaces/IERC721x.sol";
+import "./interfaces/IERC20x.sol";
 import "./interfaces/IControl.sol";
 
-contract NFTx is IERC721x, ERC721 {
+contract ERC20x is IERC20x, ERC20 {
     using Counters for Counters.Counter;
     Counters.Counter public _reqCount;
 
     // State variable
-    address public originalContract;
     address public controlContract;
 
     mapping(uint256 => Request) public requests;
     mapping(uint256 => Validation) public validations;
 
     // Constructor
-    constructor(string memory name, string memory symbol, address _originalContract, address _controlContract) ERC721(name, symbol) {
-        originalContract = _originalContract;
+    constructor(string memory _name, string memory _symbol, address _originalContract, address _controlContract) ERC20(_name, _symbol) {
         controlContract = _controlContract;
     }
 
-    function upgrade(uint256 tokenId) public {
-        require(ownerOf(tokenId) == _msgSender(), "NFTx: You do not own this token");
+    // approve function
+    // override the approve function
+    // emit function for approval
+    function approve(address spender, uint256 value) public override returns (bool) {
+        require(balanceOf(_msgSender()) >= value, "Tokenx: Insufficient tokens to approve");
 
-        // Transfer the NFT to this contract
-        ERC721(originalContract).transferFrom(_msgSender(), address(this), tokenId);
-        
-        // Mint a new NFT (or handle the logic for upgrading)
-        _mint(_msgSender(), tokenId);
-    }
-
-    function downgrade(uint256 tokenId) public {
-        require(ownerOf(tokenId) == _msgSender(), "NFTx: You do not own this token");
-
-        _burn(tokenId);
-        ERC721(originalContract).transferFrom(address(this), _msgSender(), tokenId);
-    }
-
-    function approve(address spender, uint256 tokenId) public override {
-        require(ownerOf(tokenId) == msg.sender, "NFTx: You do not own this token");
-        
         // Call the getValidationParams function from the ControlContract
         (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
 
         // Create a new Request struct
         Request memory newRequest = Request({
-            owner: msg.sender,
+            owner: _msgSender(),
             spender: spender,
             receiver: address(0), // Assuming receiver is not applicable here
-            tokenId: tokenId,
+            amount: value,
             status: Status.Pending,
             initiatedTime: block.timestamp
         });
@@ -63,25 +47,33 @@ contract NFTx is IERC721x, ERC721 {
         // Add the new request to the requests mapping
         requests[_reqCount.current()] = newRequest;
 
-        // Emit the ApprovalCreated event with the endpoint and validator
-        emit ApprovalCreated(_reqCount.current(), msg.sender, spender, tokenId, Status.Pending, block.timestamp, endpoint, validator);
+        // Add the new validation to the validations mapping
+        validations[_reqCount.current()] = Validation({
+            endpoint: endpoint,
+            validator: validator
+        });
+
+        // Emit the RequestCreated event with the endpoint and validator
+        emit ApprovalCreated(_reqCount.current(), _msgSender(), spender, value, Status.Pending, block.timestamp, endpoint, validator);
         
         // Increment the request count
         _reqCount.increment();
+
+        return true;
     }
 
-    function transfer(address recipient, uint256 tokenId) public returns (bool) {
-        require(ownerOf(tokenId) == msg.sender, "NFTx: You do not own this token");
-        
+    function transfer(address recipient, uint256 amount) public override returns (bool) {
+        require(balanceOf(_msgSender()) >= amount, "Tokenx: Insufficient tokens to transfer");
+
         // Call the getValidationParams function from the ControlContract
         (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
 
         // Create a new Request struct
         Request memory newRequest = Request({
-            owner: msg.sender,
+            owner: _msgSender(),
             spender: address(0), // No spender in direct transfer
             receiver: recipient,
-            tokenId: tokenId,
+            amount: amount,
             status: Status.Pending,
             initiatedTime: block.timestamp
         });
@@ -89,12 +81,21 @@ contract NFTx is IERC721x, ERC721 {
         // Add the new request to the requests mapping
         requests[_reqCount.current()] = newRequest;
 
+        // Add the new validation to the validations mapping
+        validations[_reqCount.current()] = Validation({
+            endpoint: endpoint,
+            validator: validator
+        });
+
         // Emit the TransferCreated event with the endpoint and validator
-        emit TransferCreated(_reqCount.current(), msg.sender, recipient, tokenId, Status.Pending, block.timestamp, endpoint, validator);
+        emit TransferCreated(_reqCount.current(), _msgSender(), recipient, amount, Status.Pending, block.timestamp, endpoint, validator);
         
         // Increment the request count
         _reqCount.increment();
 
+        // Perform the transfer
+        _transfer(_msgSender(), recipient, amount);
+        
         return true;
     }
 
@@ -119,10 +120,7 @@ contract NFTx is IERC721x, ERC721 {
         // Check that the time difference is within the max approval time
         require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
 
-        // Additional logic for validation can be added here
-        _burn(params.tokenId); // Burn the NFT or handle it as per your logic
-        ERC721(originalContract).transferFrom(address(this), params.receiver, params.tokenId);
-
+        super._transfer(params.owner, params.receiver, params.amount);
         requests[reqId].status = Status.Approved;
 
         return true; // Return true if validation is successful
@@ -149,7 +147,7 @@ contract NFTx is IERC721x, ERC721 {
         // Check that the time difference is within the max approval time
         require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
 
-        ERC721(originalContract).approve(params.spender, params.tokenId); // Approve the spender for the NFT
+        super._approve(params.spender, params.spender, params.amount);
 
         requests[reqId].status = Status.Approved;
         return true; // Return true if validation is successful
