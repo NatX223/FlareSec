@@ -18,6 +18,9 @@ contract ControlContract is Ownable {
     mapping(address => bool) public validators;
     mapping(uint256 => address) public validatorAddresses;
 
+    address public latestValidator;
+    string public latestEndpoint;
+
     event EndpointAdded(uint256 key, string value);
     event ValidatorAdded(address validator);
     event MaxApprovalTimeChanged(uint newMaxApprovalTime);
@@ -63,6 +66,10 @@ contract ControlContract is Ownable {
 
         endpoint = endpoints[endpointIndex];
         validator = validatorAddresses[validatorIndex];
+
+        // Set the latest chosen validator and endpoint
+        latestEndpoint = endpoint;
+        latestValidator = validator;
 
         return (endpoint, validator);
     }
