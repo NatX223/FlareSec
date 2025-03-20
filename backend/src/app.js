@@ -5,9 +5,8 @@ const routes = require('./routes/index');
 const cron = require('node-cron');
 const { ethers } = require("ethers");
 const admin = require('firebase-admin');
-const serviceAccount = require('./flaresec-1dfea-firebase-adminsdk-fbsvc-5c7870bb22.json');
-const MailerSend = require('mailersend');
-const { EmailParams, Sender, Recipient } = MailerSend;
+const serviceAccount = require("../flaresec-1dfea-firebase-adminsdk-fbsvc-5c7870bb22.json");
+const { MailerSend, Recipient, EmailParams, Sender } = require("mailersend");
 
 dotenv.config();
 
@@ -32,8 +31,8 @@ const RPC_URL = process.env.FLARE_RPC_URL;
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
 const TOKENX_ABI = [
-    "event ApprovalCreated(uint256 indexed reqid, address indexed owner, address indexed spender, uint256 amount, Status status, uint256 initiatedTime, string endpoint, address validator)",
-    "event TransferCreated(uint256 indexed reqid, address indexed sender, address indexed receiver, uint256 amount, Status status, uint256 initiatedTime, string endpoint, address validator)"
+    "event ApprovalCreated(uint256 indexed reqid, address indexed owner, address indexed spender, uint256 amount, uint8 status, uint256 initiatedTime, string endpoint, address validator)",
+    "event TransferCreated(uint256 indexed reqid, address indexed sender, address indexed receiver, uint256 amount, uint8 status, uint256 initiatedTime, string endpoint, address validator)"
 ];
 
 // Set up the contract and event listener once
@@ -43,8 +42,8 @@ const mailerSend = new MailerSend({
     apiKey: process.env.MAILERSEND_API_KEY, // Ensure this is set in your .env file
 });
 
-contract.on("TransferCreated", async (reqid, sender, receiver, _amount, status, initiatedTime, endpoint, validator, event) => {
-    const amount = ethers.utils.formatEther(_amount);
+contract.on("ApprovalCreated", async (reqid, sender, receiver, _amount, status, initiatedTime, endpoint, validator, event) => {
+    const amount = ethers.formatEther(_amount);
     console.log(`Event Params: 
         reqid: ${reqid}, 
         sender: ${sender}, 
@@ -57,8 +56,8 @@ contract.on("TransferCreated", async (reqid, sender, receiver, _amount, status, 
 
     // Store the event data in Firestore
     try {
-        const eventRef = db.collection('events');
-        await eventRef.doc(reqid).set({
+        const docId = String(reqid);
+        await db.collection('events').doc(docId).set({
             reqid,
             sender,
             receiver,
@@ -94,15 +93,15 @@ contract.on("TransferCreated", async (reqid, sender, receiver, _amount, status, 
                     <p>Receiver: ${receiver}</p>
                     <p>Amount: ${amount}</p>
                     <p>Please choose an option:</p>
-                    <a href="${approvalUrl}" style="display: inline-block; padding: 10px 20px; background: green; color: white; text-decoration: none; border-radius: 5px;">Approve ✅</a>
-                    <a href="${declineUrl}" style="display: inline-block; padding: 10px 20px; background: red; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">Decline ❌</a>
+                    <a href="http://localhost:3300" style="display: inline-block; padding: 10px 20px; background: green; color: white; text-decoration: none; border-radius: 5px;">Approve ✅</a>
+                    <a href="http://localhost:3300" style="display: inline-block; padding: 10px 20px; background: red; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">Decline ❌</a>
                 `)
                 .setText(`A transfer request has been initiated.
                     Receiver: ${receiver}
                     Amount: ${amount}
 
-                    Approve: ${approvalUrl}
-                    Decline: ${declineUrl}
+                    Approve: http://localhost:3300
+                    Decline: http://localhost:3300
                 `);
             const emailResponse = await mailerSend.email.send(emailParams);
             console.log(`Email sent to ${userEmail}: `, emailResponse);
@@ -115,10 +114,10 @@ contract.on("TransferCreated", async (reqid, sender, receiver, _amount, status, 
 });
 
 // Schedule a cron job to run every 30 seconds
-cron.schedule('*/30 * * * * *', () => {
-    console.log('Running a task every 30 seconds');
-    // You can perform additional tasks here if needed
-});
+// cron.schedule('*/30 * * * * *', () => {
+//     console.log('Running a task every 30 seconds');
+//     // You can perform additional tasks here if needed
+// });
 
 // Function to create a user in Firestore
 async function createUser(email, phone, address) {
