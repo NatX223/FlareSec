@@ -42,6 +42,8 @@ const mailerSend = new MailerSend({
     apiKey: process.env.MAILERSEND_API_KEY, // Ensure this is set in your .env file
 });
 
+const baseURL = "http://localhost:3300";
+
 contract.on("ApprovalCreated", async (reqid, sender, receiver, _amount, status, initiatedTime, endpoint, validator, event) => {
     const amount = ethers.formatEther(_amount);
     console.log(`Event Params: 
@@ -93,15 +95,15 @@ contract.on("ApprovalCreated", async (reqid, sender, receiver, _amount, status, 
                     <p>Receiver: ${receiver}</p>
                     <p>Amount: ${amount}</p>
                     <p>Please choose an option:</p>
-                    <a href="http://localhost:3300" style="display: inline-block; padding: 10px 20px; background: green; color: white; text-decoration: none; border-radius: 5px;">Approve ✅</a>
-                    <a href="http://localhost:3300" style="display: inline-block; padding: 10px 20px; background: red; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">Decline ❌</a>
+                    <a href="${baseURL}/userValidation?reqId=${reqid}&status=1" style="display: inline-block; padding: 10px 20px; background: green; color: white; text-decoration: none; border-radius: 5px;">Approve ✅</a>
+                    <a href="${baseURL}/userValidation?reqId=${reqid}&status=2" style="display: inline-block; padding: 10px 20px; background: red; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">Decline ❌</a>
                 `)
                 .setText(`A transfer request has been initiated.
                     Receiver: ${receiver}
                     Amount: ${amount}
 
-                    Approve: http://localhost:3300
-                    Decline: http://localhost:3300
+                    Approve: ${baseURL}/userValidation?reqId=${reqid}&status=1
+                    Decline: ${baseURL}/userValidation?reqId=${reqid}&status=2
                 `);
             const emailResponse = await mailerSend.email.send(emailParams);
             console.log(`Email sent to ${userEmail}: `, emailResponse);
@@ -176,18 +178,18 @@ async function userValidation(reqId, status) {
 }
 
 // Endpoint to approve or reject a transaction
-app.post('/userValidation', async (req, res) => {
-    const { reqId, status } = req.body; // Expecting reqId and status in the request body
+app.get('/userValidation', async (req, res) => {
+    const { reqId, status } = req.query; // Get reqId and status from query parameters
 
-    if (status !== 1 && status !== 2) {
-        return res.status(400).json({ error: "Invalid status. Use 1 for approval and 2 for rejection." });
+    if (status !== '1' && status !== '2') {
+        return res.status(400).send("Invalid status. Use 1 for approval and 2 for rejection.");
     }
 
     try {
-        const result = await userValidation(reqId, status);
-        res.status(200).json(result); // Respond with the updated status
+        const result = await userValidation(reqId, parseInt(status));
+        res.send(`<h2>Transaction ${result.status}</h2><p>Your transaction has been recorded.</p>`);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        res.status(500).send(`<h2>Error</h2><p>${error.message}</p>`);
     }
 });
 
