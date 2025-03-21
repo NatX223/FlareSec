@@ -166,7 +166,7 @@ async function userValidation(reqId, status) {
 
         // Update the status field
         await eventRef.update({
-            status: status === 1 ? "Approved" : "Rejected" // Set status to "Approved" or "Rejected"
+            status
         });
 
         console.log(`Event ${reqId} status updated to: ${status === 1 ? "Approved" : "Rejected"}`);
