@@ -2,6 +2,6 @@
 pragma solidity ^0.8.28;
 
 interface IControl {
-    function getValidationParams() external returns (string memory endpoint, address validatorIndex);
+    function getValidationParams(address contractAddress) external returns (address validatorIndex, uint256 reqId);
     function maxApprovalTime() external returns (uint);
 }

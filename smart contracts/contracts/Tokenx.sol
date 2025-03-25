@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./interfaces/IERC20x.sol";
 import "./interfaces/IControl.sol";
+import "./interfaces/ITokenRouter.sol";
 
 contract Tokenx is IERC20x, ERC20 {
     using Counters for Counters.Counter;
@@ -17,14 +18,16 @@ contract Tokenx is IERC20x, ERC20 {
     // State variable
     address public originalContract;
     address public controlContract;
+    address public routerAddress;
 
     mapping(uint256 => Request) public requests;
-    mapping(uint256 => Validation) public validations;
+    mapping(uint256 => address) public validations;
 
     // Constructor
-    constructor(string memory _name, string memory _symbol, address _originalContract, address _controlContract) ERC20(_name, _symbol) {
+    constructor(string memory _name, string memory _symbol, address _originalContract, address _controlContract, address _routerAddress) ERC20(_name, _symbol) {
         originalContract = _originalContract;
         controlContract = _controlContract;
+        routerAddress = _routerAddress;
     }
 
     function upgrade(uint256 amount) public {
@@ -48,7 +51,8 @@ contract Tokenx is IERC20x, ERC20 {
         require(balanceOf(_msgSender()) >= value, "Tokenx: Insufficient tokens to approve");
 
         // Call the getValidationParams function from the ControlContract
-        (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
+        (address validator, uint256 reqId) = IControl(controlContract).getValidationParams(address(this));
+        validations[reqId] = validator;
 
         // Create a new Request struct
         Request memory newRequest = Request({
@@ -61,16 +65,11 @@ contract Tokenx is IERC20x, ERC20 {
         });
 
         // Add the new request to the requests mapping
-        requests[_reqCount.current()] = newRequest;
-
-        // Add the new validation to the validations mapping
-        validations[_reqCount.current()] = Validation({
-            endpoint: endpoint,
-            validator: validator
-        });
+        requests[reqId] = newRequest;
 
         // Emit the RequestCreated event with the endpoint and validator
-        emit ApprovalCreated(_reqCount.current(), _msgSender(), spender, value, Status.Pending, block.timestamp, endpoint, validator);
+        ITokenRouter(routerAddress).approvalTraker(reqId, _msgSender(), spender, value, 0, block.timestamp, validator, address(this));
+        emit ApprovalCreated(reqId, _msgSender(), spender, value, Status.Pending, block.timestamp, validator);
         
         // Increment the request count
         _reqCount.increment();
@@ -82,7 +81,8 @@ contract Tokenx is IERC20x, ERC20 {
         require(balanceOf(_msgSender()) >= amount, "Tokenx: Insufficient tokens to transfer");
 
         // Call the getValidationParams function from the ControlContract
-        (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
+        (address validator, uint256 reqId) = IControl(controlContract).getValidationParams(address(this));
+        validations[reqId] = validator;
 
         // Create a new Request struct
         Request memory newRequest = Request({
@@ -95,16 +95,11 @@ contract Tokenx is IERC20x, ERC20 {
         });
 
         // Add the new request to the requests mapping
-        requests[_reqCount.current()] = newRequest;
-
-        // Add the new validation to the validations mapping
-        validations[_reqCount.current()] = Validation({
-            endpoint: endpoint,
-            validator: validator
-        });
+        requests[reqId] = newRequest;
 
         // Emit the TransferCreated event with the endpoint and validator
-        emit TransferCreated(_reqCount.current(), _msgSender(), recipient, amount, Status.Pending, block.timestamp, endpoint, validator);
+        ITokenRouter(routerAddress).transferTraker(reqId, _msgSender(), recipient, amount, 0, block.timestamp, validator, address(this));
+        emit TransferCreated(reqId, _msgSender(), recipient, amount, Status.Pending, block.timestamp, validator);
         
         // Increment the request count
         _reqCount.increment();
@@ -177,7 +172,7 @@ contract Tokenx is IERC20x, ERC20 {
     }
 
     modifier onlyValidator(uint256 reqId) {
-        require(msg.sender == validations[reqId].validator, "Tokenx: Caller is not the validator for this request");
+        require(msg.sender == validations[reqId], "Tokenx: Caller is not the validator for this request");
         _;
     }
 }

@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 import "./interfaces/IERC721x.sol";
 import "./interfaces/IControl.sol";
+import "./interfaces/INFTRouter.sol";
 
 contract NFTx is IERC721x, ERC721 {
     using Counters for Counters.Counter;
@@ -17,14 +18,16 @@ contract NFTx is IERC721x, ERC721 {
     // State variable
     address public originalContract;
     address public controlContract;
+    address public routerAddress;
 
     mapping(uint256 => Request) public requests;
-    mapping(uint256 => Validation) public validations;
+    mapping(uint256 => address) public validations;
 
     // Constructor
-    constructor(string memory name, string memory symbol, address _originalContract, address _controlContract) ERC721(name, symbol) {
+    constructor(string memory name, string memory symbol, address _originalContract, address _controlContract, address _routerAddress) ERC721(name, symbol) {
         originalContract = _originalContract;
         controlContract = _controlContract;
+        routerAddress = _routerAddress;
     }
 
     function upgrade(uint256 tokenId) public {
@@ -48,7 +51,8 @@ contract NFTx is IERC721x, ERC721 {
         require(ownerOf(tokenId) == msg.sender, "NFTx: You do not own this token");
         
         // Call the getValidationParams function from the ControlContract
-        (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
+        (address validator, uint256 reqId) = IControl(controlContract).getValidationParams(address(this));
+        validations[reqId] = validator;
 
         // Create a new Request struct
         Request memory newRequest = Request({
@@ -61,10 +65,11 @@ contract NFTx is IERC721x, ERC721 {
         });
 
         // Add the new request to the requests mapping
-        requests[_reqCount.current()] = newRequest;
+        requests[reqId] = newRequest;
 
-        // Emit the ApprovalCreated event with the endpoint and validator
-        emit ApprovalCreated(_reqCount.current(), msg.sender, spender, tokenId, Status.Pending, block.timestamp, endpoint, validator);
+        // Emit the ApprovalCreated event with the validator
+        INFTRouter(routerAddress).approvalTraker(reqId, _msgSender(), spender, tokenId, 0, block.timestamp, validator, address(this));
+        emit ApprovalCreated(reqId, msg.sender, spender, tokenId, Status.Pending, block.timestamp, validator);
         
         // Increment the request count
         _reqCount.increment();
@@ -74,8 +79,8 @@ contract NFTx is IERC721x, ERC721 {
         require(ownerOf(tokenId) == msg.sender, "NFTx: You do not own this token");
         
         // Call the getValidationParams function from the ControlContract
-        (string memory endpoint, address validator) = IControl(controlContract).getValidationParams();
-
+        (address validator, uint256 reqId) = IControl(controlContract).getValidationParams(address(this));
+        validations[reqId] = validator;
         // Create a new Request struct
         Request memory newRequest = Request({
             owner: msg.sender,
@@ -90,7 +95,8 @@ contract NFTx is IERC721x, ERC721 {
         requests[_reqCount.current()] = newRequest;
 
         // Emit the TransferCreated event with the endpoint and validator
-        emit TransferCreated(_reqCount.current(), msg.sender, recipient, tokenId, Status.Pending, block.timestamp, endpoint, validator);
+        INFTRouter(routerAddress).transferTraker(reqId, _msgSender(), recipient, tokenId, 0, block.timestamp, validator, address(this));
+        emit TransferCreated(_reqCount.current(), msg.sender, recipient, tokenId, Status.Pending, block.timestamp, validator);
         
         // Increment the request count
         _reqCount.increment();
@@ -160,7 +166,7 @@ contract NFTx is IERC721x, ERC721 {
     }
 
     modifier onlyValidator(uint256 reqId) {
-        require(msg.sender == validations[reqId].validator, "Tokenx: Caller is not the validator for this request");
+        require(msg.sender == validations[reqId], "Tokenx: Caller is not the validator for this request");
         _;
     }
 }

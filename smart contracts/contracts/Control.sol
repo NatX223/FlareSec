@@ -10,36 +10,20 @@ contract ControlContract is Ownable {
     RandomNumberV2Interface internal randomV2;
     using Counters for Counters.Counter;
     
-    Counters.Counter public endpointCount;
     Counters.Counter public validatorCount;
     uint public maxApprovalTime;
 
-    mapping(uint256 => string) public endpoints;
     mapping(address => bool) public validators;
     mapping(uint256 => address) public validatorAddresses;
 
     address public latestValidator;
-    string public latestEndpoint;
 
-    event EndpointAdded(uint256 key, string value);
     event ValidatorAdded(address validator);
     event MaxApprovalTimeChanged(uint newMaxApprovalTime);
 
     constructor(uint _maxApprovalTime, address initialOwner) Ownable(initialOwner) {
         maxApprovalTime = _maxApprovalTime;
         randomV2 = ContractRegistry.getRandomNumberV2();
-    }
-
-    function changeEndpoint(uint256 key, string memory value) public onlyOwner {
-        endpoints[key] = value;
-        emit EndpointAdded(key, value);
-    }
-
-    function addEndpoint(string memory value) public onlyOwner {
-        uint256 currentCount = endpointCount.current();
-        endpoints[currentCount] = value;
-        emit EndpointAdded(currentCount, value);
-        endpointCount.increment();        
     }
 
     function addValidator(address validator) public onlyOwner {
@@ -55,23 +39,20 @@ contract ControlContract is Ownable {
         emit MaxApprovalTimeChanged(newMaxApprovalTime);
     }
 
-    function getValidationParams() public returns (string memory endpoint, address validator) {
-        // get validator and endpoint count
-        endpointCount.current();
+    function getValidationParams(address contractAddress) public returns (address validator, uint256 reqId) {
+        // get validator count
         validatorCount.current();
         // generate random number within that range
         (uint256 randomNumber, , ) = getSecureRandomNumber();
-        uint256 endpointIndex = randomNumber % endpointCount.current();
         uint256 validatorIndex = randomNumber % validatorCount.current();
 
-        endpoint = endpoints[endpointIndex];
         validator = validatorAddresses[validatorIndex];
+        reqId = uint256(keccak256(abi.encodePacked(randomNumber, block.timestamp, contractAddress)));
 
-        // Set the latest chosen validator and endpoint
-        latestEndpoint = endpoint;
+        // Set the latest chosen validator
         latestValidator = validator;
 
-        return (endpoint, validator);
+        return (validator, reqId);
     }
 
     function getSecureRandomNumber()
