@@ -7,7 +7,6 @@ const { ethers } = require("ethers");
 
 dotenv.config();
 
-
 const db = admin.firestore();
 
 const app = express();
@@ -29,18 +28,24 @@ const TOKENX_ABI = [
     "event TransferCreated(uint256 indexed reqid, address indexed sender, address indexed receiver, uint256 amount, uint8 status, uint256 initiatedTime, string endpoint, address validator)"
 ];
 
-// Set up the contract and event listener once
-const contract = new ethers.Contract(CONTRACT_ADDRESS, TOKENX_ABI, provider);
-
 const baseURL = "http://localhost:3300";
 
 // Schedule a cron job to run every 30 seconds
 cron.schedule('*/30 * * * * *', () => {
     console.log('Running a task every 30 seconds');
     // You can perform additional tasks here if needed
+    // get all updated reqId
+    // call and verify their endpoints
+    // remove from updated to completed
 });
 
 // Start the server
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+
+// instatiate contract registry - address and function abis
+// instantiate other contracts
+// define tokenx and nftx abis
+// run cron job

@@ -29,14 +29,14 @@ app.use('/api', routes);
 
 const RPC_URL = process.env.FLARE_RPC_URL;
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
-const TOKENX_ABI = [
-    "event ApprovalCreated(uint256 indexed reqid, address indexed owner, address indexed spender, uint256 amount, uint8 status, uint256 initiatedTime, string endpoint, address validator)",
-    "event TransferCreated(uint256 indexed reqid, address indexed sender, address indexed receiver, uint256 amount, uint8 status, uint256 initiatedTime, string endpoint, address validator)"
+const ROUTER_ADDRESS = process.env.ROUTER_ADDRESS;
+const TOKENX_ROUTER_ABI = [
+    "event ApprovalCreated(uint256 indexed reqid, address indexed owner, address indexed spender, uint256 amount, uint8 status, uint256 initiatedTime, address validator, address contractAddress);",
+    "event TransferCreated(uint256 indexed reqid, address indexed sender, address indexed receiver, uint256 amount, uint8 status, uint256 initiatedTime, address validator, address contractAddress);"
 ];
 
 // Set up the contract and event listener once
-const contract = new ethers.Contract(CONTRACT_ADDRESS, TOKENX_ABI, provider);
+const tokenRouterContract = new ethers.Contract(ROUTER_ADDRESS, TOKENX_ROUTER_ABI, provider);
 
 const mailerSend = new MailerSend({
     apiKey: process.env.MAILERSEND_API_KEY, // Ensure this is set in your .env file
@@ -44,16 +44,16 @@ const mailerSend = new MailerSend({
 
 const baseURL = "http://localhost:3300";
 
-contract.on("ApprovalCreated", async (reqid, sender, receiver, _amount, status, initiatedTime, endpoint, validator, event) => {
+tokenRouterContract.on("ApprovalCreated", async (reqid, sender, receiver, _amount, status, initiatedTime, validator, tokenXAddress, event) => {
     const amount = ethers.formatEther(_amount);
     console.log(`Event Params: 
         reqid: ${reqid}, 
-        sender: ${sender}, 
-        receiver: ${receiver}, 
-        amount: ${amount}, 
-        status: ${status}, 
-        initiatedTime: ${initiatedTime}, 
-        endpoint: ${endpoint}, 
+        sender: ${sender},
+        receiver: ${receiver},
+        amount: ${amount},
+        status: ${status},
+        initiatedTime: ${initiatedTime},
+        tokenXAddress: ${tokenXAddress},
         validator: ${validator}`);
 
     // Store the event data in Firestore
@@ -66,7 +66,8 @@ contract.on("ApprovalCreated", async (reqid, sender, receiver, _amount, status, 
             amount,
             status,
             initiatedTime,
-            endpoint,
+            tokenXAddress,
+            txType: "Approve",
             validator,
             createdAt: new Date() // Optional: timestamp of when the event was stored
         });
@@ -83,8 +84,80 @@ contract.on("ApprovalCreated", async (reqid, sender, receiver, _amount, status, 
             const userEmail = userData.email;
 
             // Prepare email parameters
-            const sentFrom = new Sender("no-reply@trial-z86org8pvwzlew13.mlsender.net", "FlareSec"); // Replace with your sender email and name
-            const recipients = [new Recipient(userEmail, "User")]; // Use the user's email
+            const sentFrom = new Sender("no-reply@trial-z86org8pvwzlew13.mlsender.net", "FlareSec");
+            const recipients = [new Recipient(userEmail, "User")];
+            const emailParams = new EmailParams()
+                .setFrom(sentFrom)
+                .setTo(recipients)
+                .setReplyTo(sentFrom)
+                .setSubject("Approval Created Notification")
+                .setHtml(`
+                    <p><strong>An approval request has been initiated.</strong></p>
+                    <p>Spender: ${receiver}</p>
+                    <p>Amount: ${amount}</p>
+                    <p>Please choose an option:</p>
+                    <a href="${baseURL}/userValidation?reqId=${reqid}&status=1" style="display: inline-block; padding: 10px 20px; background: green; color: white; text-decoration: none; border-radius: 5px;">Approve ✅</a>
+                    <a href="${baseURL}/userValidation?reqId=${reqid}&status=2" style="display: inline-block; padding: 10px 20px; background: red; color: white; text-decoration: none; border-radius: 5px; margin-left: 10px;">Decline ❌</a>
+                `)
+                .setText(`An appproval request has been initiated.
+                    Spender: ${receiver}
+                    Amount: ${amount}
+
+                    Approve: ${baseURL}/userValidation?reqId=${reqid}&status=1
+                    Decline: ${baseURL}/userValidation?reqId=${reqid}&status=2
+                `);
+            const emailResponse = await mailerSend.email.send(emailParams);
+            console.log(`Email sent to ${userEmail}: `, emailResponse);
+        } else {
+            console.log(`No user found for sender address: ${sender}`);
+        }
+    } catch (error) {
+        console.error("Error sending email: ", error);
+    }
+});
+
+tokenRouterContract.on("TransferCreated", async (reqid, sender, receiver, _amount, status, initiatedTime, validator, tokenXAddress, event) => {
+    const amount = ethers.formatEther(_amount);
+    console.log(`Event Params: 
+        reqid: ${reqid}, 
+        sender: ${sender},
+        receiver: ${receiver},
+        amount: ${amount},
+        status: ${status},
+        initiatedTime: ${initiatedTime},
+        tokenXAddress: ${tokenXAddress},
+        validator: ${validator}`);
+
+    // Store the event data in Firestore
+    try {
+        const docId = String(reqid);
+        await db.collection('events').doc(docId).set({
+            reqid,
+            sender,
+            receiver,
+            amount,
+            status,
+            initiatedTime,
+            tokenXAddress,
+            txType: "Transfer",
+            validator,
+            createdAt: new Date() // Optional: timestamp of when the event was stored
+        });
+        console.log(`Event stored with ID: ${reqid}`);
+    } catch (error) {
+        console.error("Error storing event: ", error);
+    }
+
+    // Check for the user associated with the sender's address
+    try {
+        const userSnapshot = await db.collection('users').where('address', '==', sender).get();
+        if (!userSnapshot.empty) {
+            const userData = userSnapshot.docs[0].data();
+            const userEmail = userData.email;
+
+            // Prepare email parameters
+            const sentFrom = new Sender("no-reply@trial-z86org8pvwzlew13.mlsender.net", "FlareSec");
+            const recipients = [new Recipient(userEmail, "User")];
             const emailParams = new EmailParams()
                 .setFrom(sentFrom)
                 .setTo(recipients)
@@ -169,6 +242,11 @@ async function userValidation(reqId, status) {
             status
         });
 
+        await db.collection('updatedEvents').doc(reqId).set({
+            reqId,
+            updatedAt: new Date() // Optional: timestamp of when the event was updated
+        });
+
         console.log(`Event ${reqId} status updated to: ${status === 1 ? "Approved" : "Rejected"}`);
         return { reqId, status: status === 1 ? "Approved" : "Rejected" };
     } catch (error) {
@@ -190,6 +268,52 @@ app.get('/userValidation', async (req, res) => {
         res.send(`<h2>Transaction ${result.status}</h2><p>Your transaction has been recorded.</p>`);
     } catch (error) {
         res.status(500).send(`<h2>Error</h2><p>${error.message}</p>`);
+    }
+});
+
+// Endpoint to get an event by reqId
+app.get('/event/:reqId', async (req, res) => {
+    const { reqId } = req.params; // Get reqId from the request parameters
+
+    try {
+        const eventDoc = await db.collection('events').doc(reqId).get(); // Fetch the event from Firestore
+
+        if (!eventDoc.exists) {
+            return res.status(404).json({ error: "Event not found" }); // Return 404 if event does not exist
+        }
+
+        const eventData = eventDoc.data(); // Get the event data
+        const amount = ethers.parseEther(eventData.amount);
+
+        if (eventData.txType === "Approve") {
+            const returnEvent = {
+                owner: eventData.sender,
+                spender: eventData.receiver,
+                receiver: "0x0000000000000000000000000000000000000000",
+                amount: amount,
+                status: eventData.status,
+                initiatedTime: eventData.initiatedTime
+            }
+
+            res.json(returnEvent);
+        }
+
+        else {
+            const returnEvent = {
+                owner: eventData.sender,
+                spender: "0x0000000000000000000000000000000000000000",
+                receiver: eventData.receiver,
+                amount: amount,
+                status: eventData.status,
+                initiatedTime: eventData.initiatedTime
+            }
+
+            res.json(returnEvent);
+        }
+
+    } catch (error) {
+        console.error("Error fetching event: ", error);
+        res.status(500).json({ error: "Failed to fetch event" }); // Return 500 on error
     }
 });
 

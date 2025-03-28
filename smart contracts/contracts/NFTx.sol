@@ -106,6 +106,7 @@ contract NFTx is IERC721x, ERC721 {
 
     function validateTransfer(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
         require(isJsonApiProofValid(data), "Invalid proof");
+        require(requests[reqId].status != Status.Approved, "Transaction already approved");
 
         Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
 
@@ -136,7 +137,8 @@ contract NFTx is IERC721x, ERC721 {
 
     function validateApproval(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
         require(isJsonApiProofValid(data), "Invalid proof");
-
+        require(requests[reqId].status != Status.Approved, "Transaction already approved");
+        
         Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
 
         // Check the status of the request

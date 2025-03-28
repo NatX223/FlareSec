@@ -112,7 +112,8 @@ contract Tokenx is IERC20x, ERC20 {
 
     function validateTransfer(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
         require(isJsonApiProofValid(data), "Invalid proof");
-
+        require(requests[reqId].status != Status.Approved, "Transaction already approved");
+        
         Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
 
         // Check the status of the request
@@ -129,11 +130,11 @@ contract Tokenx is IERC20x, ERC20 {
         uint maxApprovalTime = IControl(controlContract).maxApprovalTime();
 
         // Check that the time difference is within the max approval time
-        require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
+        require(block.timestamp <= requests[reqId].initiatedTime + maxApprovalTime, "Approval time exceeded");
 
         // Additional logic for validation can be added here
-        _burn(_msgSender(), params.amount);
-        ERC20(originalContract).transfer(params.receiver, params.amount);
+        _burn(_msgSender(), requests[reqId].amount);
+        ERC20(originalContract).transfer(requests[reqId].receiver, requests[reqId].amount);
 
         requests[reqId].status = Status.Approved;
 
@@ -142,7 +143,7 @@ contract Tokenx is IERC20x, ERC20 {
 
     function validateApproval(uint256 reqId, IJsonApi.Proof calldata data) external onlyValidator(reqId) returns(bool) {
         require(isJsonApiProofValid(data), "Invalid proof");
-
+        require(requests[reqId].status != Status.Approved, "Transaction already approved");
         Request memory params = abi.decode(data.data.responseBody.abi_encoded_data, (Request));
 
         // Check the status of the request
@@ -159,9 +160,9 @@ contract Tokenx is IERC20x, ERC20 {
         uint maxApprovalTime = IControl(controlContract).maxApprovalTime();
 
         // Check that the time difference is within the max approval time
-        require(block.timestamp <= params.initiatedTime + maxApprovalTime, "Approval time exceeded");
+        require(block.timestamp <= requests[reqId].initiatedTime + maxApprovalTime, "Approval time exceeded");
 
-        ERC20(originalContract).approve(params.spender, params.amount);
+        ERC20(originalContract).approve(requests[reqId].spender, requests[reqId].amount);
 
         requests[reqId].status = Status.Approved;
         return true; // Return true if validation is successful
