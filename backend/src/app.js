@@ -244,7 +244,10 @@ async function userValidation(reqId, status) {
 
         await db.collection('updatedEvents').doc(reqId).set({
             reqId,
-            updatedAt: new Date() // Optional: timestamp of when the event was updated
+            updatedAt: new Date(), // Optional: timestamp of when the event was updated
+            validator: eventDoc.data().validator,
+            txType: eventDoc.data().txType,
+            tokenXAddress: eventDoc.data().tokenXAddress
         });
 
         console.log(`Event ${reqId} status updated to: ${status === 1 ? "Approved" : "Rejected"}`);
@@ -292,7 +295,9 @@ app.get('/event/:reqId', async (req, res) => {
                 receiver: "0x0000000000000000000000000000000000000000",
                 amount: amount,
                 status: eventData.status,
-                initiatedTime: eventData.initiatedTime
+                initiatedTime: eventData.initiatedTime,
+                txType: eventData.txType,
+                tokenXAddress: tokenXAddress
             }
 
             res.json(returnEvent);
@@ -314,6 +319,42 @@ app.get('/event/:reqId', async (req, res) => {
     } catch (error) {
         console.error("Error fetching event: ", error);
         res.status(500).json({ error: "Failed to fetch event" }); // Return 500 on error
+    }
+});
+
+// Endpoint to get document IDs by validator address
+app.get('/eventParams/:validatorAddress', async (req, res) => {
+    const { validatorAddress } = req.params; // Get validator address from request parameters
+
+    if (!validatorAddress) {
+        return res.status(400).json({ error: "Validator address is required." });
+    }
+
+    try {
+        const snapshot = await db.collection('updatedEvents').where('validator', '==', validatorAddress).get();
+        const docIds = snapshot.docs.map(doc => doc.id); // Extract document IDs
+
+        // Fetch reqId, txType, and tokenXAddress for each docId
+        const eventsData = await Promise.all(docIds.map(async (docId) => {
+            const eventDoc = await db.collection('events').doc(docId).get();
+            if (eventDoc.exists) {
+                const eventData = eventDoc.data();
+                return {
+                    reqId: docId,
+                    txType: eventData.txType,
+                    tokenXAddress: eventData.tokenXAddress
+                };
+            }
+            return null; // Return null if the event does not exist
+        }));
+
+        // Filter out any null results (in case some events were not found)
+        const filteredEventsData = eventsData.filter(event => event !== null);
+
+        res.json(filteredEventsData); // Return the array of event data
+    } catch (error) {
+        console.error("Error fetching updated events: ", error);
+        res.status(500).json({ error: "Failed to fetch updated events." });
     }
 });
 
