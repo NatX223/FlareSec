@@ -1,0 +1,9 @@
+{
+    "controlAddress": "0x8c54cbb9e358888B902725593a5006A96a8C9551",
+    "flaresectokenAddress": "0x7e1F778d6cfc5997F9ee181b7Ebc8483883A7370",
+    "flaresecNFTAddress": "0x6E85283946a29c0E3F0Cf77Bc6C12ECD2F42647b",
+    "nftxfactoryAddress": "0x4E82f9A00C76a6c966e8A4a9A1382CEeD37FFC17",
+    "tokenxfactoryAddress": "0x8B8b617Ce5FF505C04723107221F2757154Dc25A",
+    "tokenxrouterAddress": "0x4798963E50accCc36781C3F0cf12b38A93777EbA",
+    "nftxrouterAddress": "0x5E5EcA08e8978BE3D52e7874B6B8080154E55E53"
+}

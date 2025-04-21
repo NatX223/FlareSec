@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
 
-contract TokenRouter is Ownable {
+contract NFTRouter is Ownable {
     using Counters for Counters.Counter;
 
     Counters.Counter public transactionCount;
