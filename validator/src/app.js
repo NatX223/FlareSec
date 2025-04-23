@@ -226,8 +226,8 @@ const sourceIdBase = "WEB2";
 const verifierUrlBase = JQ_VERIFIER_URL_TESTNET;
 
 // Schedule a cron job to run every 5 minutes
-cron.schedule('*/5 * * * *', async () => {
-    console.log('Running a task every 5 minutes');
+cron.schedule('*/10 * * * *', async () => {
+    console.log('Running a task every 10 minutes');
     // You can perform additional tasks here if needed
     // get all updated reqId
     const wallet = new Wallet(PRIVATE_KEY);
