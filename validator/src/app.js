@@ -10,7 +10,7 @@ const {
     prepareAttestationRequestBase,
     submitAttestationRequest,
     retrieveDataAndProofBase,
-} = require("./Base");
+} = require("./base");
   
 dotenv.config();
 const { JQ_VERIFIER_URL_TESTNET, JQ_VERIFIER_API_KEY, COSTON2_DA_LAYER_URL, PRIVATE_KEY } = process.env;
