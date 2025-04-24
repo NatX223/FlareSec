@@ -13,6 +13,7 @@ interface TokenInfo {
   name: string;
   symbol: string;
   balance: number;
+  upgradedBalance: number;
   address: string;
   image: string;
 }
@@ -47,7 +48,7 @@ const dashboard: React.FC = () => {
   useEffect(() => {
     const getUserTokens = async () => {
       console.log(signer);
-      const tokens = await fetchUserTokens(address, signer);
+      const tokens = await fetchUserTokens(address);
       if (tokens) {
         setUserTokens(tokens);
       }
@@ -59,7 +60,7 @@ const dashboard: React.FC = () => {
   useEffect(() => {
     const getUserNFTs = async () => {
 
-      const nfts = await fetchUserNFTs(address, signer);
+      const nfts = await fetchUserNFTs(address);
       if (nfts) {
         setUserNFTs(nfts);
       }
@@ -150,30 +151,39 @@ const dashboard: React.FC = () => {
                   <p className="text-gray-400">No Tokens available</p>
                 ) : (
                   userTokens.map((Token, index) => (
-                    <div key={index} className="p-4 bg-gray-700 rounded-lg shadow-md space-y-2 flex items-center justify-between">
-                      <div className="flex flex-col items-start">
-                        <p>{Token.name}</p>
-                        <p>{Token.symbol}</p>
+                  <div key={index} className="p-4 bg-gray-700 rounded-lg shadow-md space-y-2 flex items-center justify-between">
+                    <div className="flex flex-col items-start">
+                      <p>{Token.name}</p>
+                      <p className="text-sm text-gray-300">{Token.symbol}</p>
+                    </div>
+                    
+                    <div className="flex flex-col items-end space-y-1">
+                      <div>
+                        <p className="text-white">Balance: {Token.balance}</p>
+                        {Token.upgradedBalance !== undefined && (
+                          <p className="text-green-400 text-sm">
+                            Upgraded balance: {Token.upgradedBalance}
+                          </p>
+                        )}
                       </div>
-                      <div className="flex flex-col items-end">
-                        <p>{Token.balance}</p>
-                        <div className="flex items-center space-x-2">
-                          <input 
-                            type="string" 
-                            placeholder="Amount" 
-                            value={amounts[index] || ''}
-                            onChange={(e) => setAmounts({ ...amounts, [index]: e.target.value })}
-                            className="p-2 bg-gray-800 border border-gray-600 rounded-lg text-white shadow-inner focus:outline-none"
-                          />
-                          <button 
-                            onClick={() => upgradeToken(Token.address, index)}
-                            className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition shadow-lg"
-                          >
-                            Upgrade
-                          </button>
-                        </div>
+
+                      <div className="flex items-center space-x-2 mt-1">
+                        <input 
+                          type="string" 
+                          placeholder="Amount" 
+                          value={amounts[index] || ''}
+                          onChange={(e) => setAmounts({ ...amounts, [index]: e.target.value })}
+                          className="p-2 bg-gray-800 border border-gray-600 rounded-lg text-white shadow-inner focus:outline-none"
+                        />
+                        <button 
+                          onClick={() => upgradeToken(Token.address, index)}
+                          className="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-2 rounded-lg hover:from-green-600 hover:to-green-700 transition shadow-lg"
+                        >
+                          Upgrade
+                        </button>
                       </div>
                     </div>
+                  </div>
                   ))
                 )}
               </>

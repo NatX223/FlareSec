@@ -7,18 +7,18 @@ import { mintTokens, mintNFT } from "./app";
 
 const baseURL = "http://localhost:3300/";
 
-export const fetchUserTokens = async (userAddress, signer) => {
-    console.log(userAddress);
+export const fetchUserTokens = async (userAddress) => {
     const tokenContract = new ethers.Contract(Addresses.flaresectokenAddress, erc20ABI, flareProvider);
-    console.log(tokenContract);
     
     // Get the balance of the user
     const balance = await tokenContract.balanceOf(userAddress);
     const formattedBalance = Number(ethers.formatEther(balance));
 
+    const upgradedBalance = await fetchUpgradedTokens(userAddress);
+
     // If balance is 0, call the mintTokens function
     if (formattedBalance === 0) {
-        await mintTokens(userAddress, signer); // Ensure mintTokens is defined and accessible
+        await mintTokens(userAddress); // Ensure mintTokens is defined and accessible
     }
 
     // Return the token information
@@ -27,13 +27,30 @@ export const fetchUserTokens = async (userAddress, signer) => {
             name: "FlareSec", // Token name
             symbol: "FSC",    // Token symbol
             balance: formattedBalance,
+            upgradedBalance: upgradedBalance,
             address: Addresses.flaresectokenAddress,
             image: ""
         }
     ];
 };
 
-export const fetchUserNFTs = async (userAddress, signer) => {
+export const fetchUpgradedTokens = async (userAddress) => {
+    const tokenContract = new ethers.Contract(Addresses.flaresectokenXAddress, erc20ABI, flareProvider);
+    
+    // Get the balance of the user
+    const balance = await tokenContract.balanceOf(userAddress);
+    const formattedBalance = Number(ethers.formatEther(balance));
+
+    // If balance is 0, call the mintTokens function
+    if (formattedBalance === 0) {
+        await mintTokens(userAddress); // Ensure mintTokens is defined and accessible
+    }
+
+    // Return the token information
+    return formattedBalance;
+};
+
+export const fetchUserNFTs = async (userAddress) => {
     const nftContract = new ethers.Contract(Addresses.flaresecNFTAddress, erc721ABI, flareProvider);
     console.log(nftContract);
     
@@ -58,7 +75,7 @@ export const fetchUserNFTs = async (userAddress, signer) => {
 
     // If the user has no NFTs, mint one
     if (userNFTs.length === 0) {
-        await mintNFT(userAddress, signer); // Mint an NFT to the user
+        await mintNFT(userAddress); // Mint an NFT to the user
         const newTokenId = totalSupply; // The new tokenId will be the current totalSupply
         const imageUrl = await nftContract.tokenURI(newTokenId); // Call tokenURI to get the image URL
         userNFTs.push({

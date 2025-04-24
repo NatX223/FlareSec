@@ -3,7 +3,8 @@ Native Multi-Factor Authentication for Flare Blockchain
 
 ---  
 
-## Live Link - 
+## Live Link - https://flare-sec.vercel.app/
+## Demo - https://www.loom.com/share/ca3ffaf8ccba4ce6ab4a4c81291f28b2?sid=c63fb13e-50c8-408a-8fa7-f668e54a06da
 
 ## Table of Contents  
 

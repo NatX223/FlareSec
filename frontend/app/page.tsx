@@ -125,10 +125,18 @@ const Home: React.FC = () => {
               title: 'Be in Control',
               description: '🔒 Prevent unauthorized transactions.',
             },
+            {
+              title: 'Truly Verifiable',
+              description: "FlareSec utilizes Flare's FDC for verifiable and tamper-proof user email auth.",
+            },
+            {
+              title: 'Fully Decentralized',
+              description: 'Fully decentralized validator network.',
+            },
           ].map((feature, index) => (
             <motion.div
               key={index}
-              className="p-2 h-32 bg-gradient-to-br from-blue-800 to-blue-600 rounded-lg shadow-lg"
+              className="p-2 h-32 bg-gradient-to-br from-blue-800 to-blue-500 rounded-lg shadow-lg"
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: index * 0.2 }}
@@ -142,7 +150,7 @@ const Home: React.FC = () => {
 
         <section className="text-center py-10">
           <h2 className="text-2xl md:text-3xl font-bold tracking-wide mb-4">
-            Powered and built on Flare
+            Powered by and built on Flare
           </h2>
         </section>
       </main>

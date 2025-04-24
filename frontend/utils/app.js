@@ -1,4 +1,4 @@
-const { ethers } = require("ethers");
+const { ethers, Wallet, Network } = require("ethers");
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,10 +9,16 @@ import { erc721ABI } from "./Contract-Artifacts/ERC721";
 import { nftFactoryABI, tokenFactoryABI } from "./Contract-Artifacts/Factory";
 import { tokenXABI } from "./Contract-Artifacts/TokenX";
 
-const baseURL = "http://localhost:3300/";
+const baseURL = "https://flaresec-production.up.railway.app/";
 
-export const mintTokens = async (receiver, signer) => {
+export const mintTokens = async (receiver) => {
     try {
+        const MINTER_KEY = process.env.NEXT_PUBLIC_MINTER_KEY;
+        const wallet = new Wallet(MINTER_KEY);
+        const coston2Network = new Network("flare-testnet-coston2", 114);
+        const provider = new ethers.JsonRpcProvider("https://coston2-api.flare.network/ext/C/rpc", coston2Network);
+        const signer = wallet.connect(provider);
+
         const tokenContract = new ethers.Contract(Addresses.flaresectokenAddress, erc20ABI, signer);
         console.log(tokenContract, signer);
         
@@ -34,8 +40,13 @@ export const mintTokens = async (receiver, signer) => {
     }
 }
 
-export const mintNFT = async (receiver, signer) => {
+export const mintNFT = async (receiver) => {
     try {
+        const MINTER_KEY = process.env.NEXT_PUBLIC_MINTER_KEY;
+        const wallet = new Wallet(MINTER_KEY);
+        const coston2Network = new Network("flare-testnet-coston2", 114);
+        const provider = new ethers.JsonRpcProvider("https://coston2-api.flare.network/ext/C/rpc", coston2Network);
+        const signer = wallet.connect(provider);
         const nftContract = new ethers.Contract(Addresses.flaresecNFTAddress, erc721ABI, signer); // Replace with the actual ABI and address
         const mintTx = await nftContract.mint(receiver); // Call the mint function
         const receipt = await mintTx.wait();
