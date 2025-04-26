@@ -44,7 +44,7 @@ const mailerSend = new MailerSend({
     apiKey: process.env.MAILERSEND_API_KEY, // Ensure this is set in your .env file
 });
 
-const baseURL = "http://localhost:3300";
+const baseURL = "https://flaresec-production.up.railway.app";
 
 app.get('/', (req, res) => {
     res.send('Hello World');
@@ -380,36 +380,47 @@ app.get('/senderEvents/:address', async (req, res) => {
     try {
         // Fetch events from the 'events' collection
         const eventsSnapshot = await db.collection('events').where('sender', '==', address).get();
-        const events = eventsSnapshot.docs.map(doc => ({
-            type: doc.data().txType,
-            id: doc.data().amount,
-            amount: doc.data().amount,
-            name: "FlareSec",
-            time: doc.data().createdAt,
-            status: "Pending ⏳"
-        }));
+        const events = eventsSnapshot.docs.map(doc => {
+            const { createdAt, txType, amount } = doc.data();
+            return {
+                type: txType,
+                id: amount,
+                amount,
+                name: "FlareSec",
+                time: new Date(createdAt._seconds * 1000),
+                status: "Pending ⏳"
+            };
+        });
 
         // Fetch events from the 'updatedEvents' collection
         const updatedEventsSnapshot = await db.collection('updatedEvents').where('sender', '==', address).get();
-        const updatedEvents = updatedEventsSnapshot.docs.map(doc => ({
-            type: doc.data().txType,
-            id: doc.id,
-            amount: doc.data().amount,
-            name: "FlareSec",
-            time: doc.data().updatedAt,
-            status: doc.data().status === 1 ? "validated ✅" : "rejected ❌"
-        }));
+        const updatedEvents = updatedEventsSnapshot.docs.map(doc => {
+            const { txType, amount, updatedAt, status } = doc.data();
+            return {
+                type: txType,
+                id: doc.id,
+                amount,
+                name: "FlareSec",
+                time: new Date(updatedAt._seconds * 1000),
+                status: status === 1 ? "validated ✅" : "rejected ❌"
+            };
+        });
+        
 
         // Fetch events from the 'completedEvents' collection
         const completedEventsSnapshot = await db.collection('completedEvents').where('sender', '==', address).get();
-        const completedEvents = completedEventsSnapshot.docs.map(doc => ({
-            type: doc.data().txType,
-            id: doc.id,
-            amount: doc.data().amount,
-            name: "FlareSec",
-            time: doc.data().updatedAt,
-            status: doc.data().status === 1 ? "validated ✅" : "rejected ❌"
-        }));
+        const completedEvents = completedEventsSnapshot.docs.map(doc => {
+            const { txType, amount, updatedAt, status } = doc.data();
+            return {
+                type: txType,
+                id: doc.id,
+                amount,
+                name: "FlareSec",
+                time: new Date(updatedAt._seconds * 1000),
+                status: status === 1 ? "validated ✅" : "rejected ❌"
+            };
+        });
+        
 
         // Combine all events into a single array
         const allEvents = {

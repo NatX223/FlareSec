@@ -217,6 +217,22 @@ In the smart cntracts the use of the external data gotten from the validation AP
     }
 ``` 
 
+Use of example specifications
+```bash
+attestation_type: '0x494a736f6e417069000000000000000000000000000000000000000000000000',
+sourceId: '0x5745423200000000000000000000000000000000000000000000000000000000',
+votingRound: 964883n,
+proof: [
+  '0xf0bedb4fd550d6c3f4e25983d9aadf33c46330c7203e08439e04f3893d64e1ac',
+  '0x7cf5d720a1bf44c5333a3fda07e612f9c4b520d4668ed85457fc31bad3142d56',
+  '0x10e655fa5a9bc7cd3752a872355d953cb62707057a9f88bedae415e977ec70e0',
+  '0x2bc21662211af868bbc81c5c4b93f8aaa091498797ed7b4633ec93237ea4ff91'
+]
+url: 'https://96c5-62-173-60-250.ngrok-free.app/event/1767448648305103850985470812704491472459415057420211611911389935726085599372',
+postprocessJq: '{owner: .owner, spender: .spender, receiver: .receiver, amount: .amount, status: .status, initiatedTime: .initiatedTime}',
+abi_signature: '{"components": [{"internalType": "address", "name": "owner", "type": "address"},{"internalType": "address", "name": "spender", "type": "address"},{"internalType": "address", "name": "receiver", "type": "address"},{"internalType": "uint256", "name": "amount", "type": "uint256"},{"internalType": "enum IERC20x.Status", "name": "status", "type": "uint8"},{"internalType": "uint256", "name": "initiatedTime", "type": "uint256"}],"name": "task","type": "tuple"}'
+abi_encoded_data: '0x0000000000000000000000002ae67a159fc288db6ba4407c014f20147130b54a00000000000000000000000000000000000000000000000000000000000000000000000000000000000000006897d3a40bf4f217f3f26cb4c31baf490b5ec074000000000000000000000000000000000000000000000000000000000000006400000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000068064afb'
+```
 The full code to contracts that utilize FDC can be found [here](https://github.com/NatX223/FlareSec/blob/main/smart%20contracts/contracts/Tokenx.sol) and [here](https://github.com/NatX223/FlareSec/blob/main/smart%20contracts/contracts/NFTx.sol).
 
 - The smart contracts were deployed on the Coston2 testnet, below is a table showing the contracts deployed and their addreess

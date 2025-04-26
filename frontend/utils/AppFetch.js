@@ -5,7 +5,7 @@ import { erc20ABI } from "./Contract-Artifacts/ERC20";
 import { erc721ABI } from "./Contract-Artifacts/ERC721";
 import { mintTokens, mintNFT } from "./app";
 
-const baseURL = "http://localhost:3300/";
+const baseURL = "https://flaresec-production.up.railway.app/";
 
 export const fetchUserTokens = async (userAddress) => {
     const tokenContract = new ethers.Contract(Addresses.flaresectokenAddress, erc20ABI, flareProvider);
